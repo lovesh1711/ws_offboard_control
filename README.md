@@ -36,7 +36,7 @@ per drone). It is validated two ways:
 - **Companion computer:** Raspberry Pi running **Ubuntu** (22.04 recommended).
 - **Flight controller:** Pixhawk-class board running **PX4 v1.15+**, with the
   Pi connected to **TELEM2**.
-- **For simulation:** any Ubuntu 22.04 PC (a laptop is fine).
+- **For simulation:** any Ubuntu 22.04 PC (a laptop will be fine).
 
 > This project is developed and tested on **Ubuntu 22.04 + ROS 2 Humble**.
 > The same steps work on 24.04 + Jazzy (just swap the distro name), but Humble is
