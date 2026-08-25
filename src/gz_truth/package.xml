@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>gz_truth</name>
+  <version>0.1.0</version>
+  <description>
+    Feeds Gazebo ground-truth pose to PX4 as external vision odometry, so SITL
+    experiments have motion-capture-grade state instead of simulated-GPS noise.
+    Simulation only; nothing here runs on hardware.
+  </description>
+  <maintainer email="loveshgoyal2002@gmail.com">lovesh</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>px4_msgs</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>
