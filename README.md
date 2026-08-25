@@ -169,6 +169,17 @@ MicroXRCEAgent --help
 > **If the build fails** while fetching a Fast-DDS branch (e.g. `invalid
 > reference: 2.12.x`), that upstream branch was removed. Pin it to a tag:
 > `sed -i 's#2\.12\.x#v2.12.2#g' ../CMakeLists.txt` then re-run `cmake .. && make`.
+>
+> **If `make` fails with `Could not resolve host: github.com` or IPv6
+> `Network is unreachable`** — `make` git-clones the agent's dependencies, so a
+> broken-IPv6/DNS network stops it (same root cause as §2). Prefer IPv4, fix DNS
+> if needed, then rebuild from a clean `build/`:
+> ```bash
+> sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1
+> ping -4 -c3 github.com     # if it can't resolve: sudo resolvectl dns <iface> 8.8.8.8 1.1.1.1
+> cd ~/Micro-XRCE-DDS-Agent && rm -rf build && mkdir build && cd build && cmake .. && make
+> ```
+> Or skip the source build entirely: `sudo snap install micro-xrce-dds-agent`.
 
 ---
 
