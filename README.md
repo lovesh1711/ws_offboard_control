@@ -293,6 +293,7 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 
 | symptom | fix |
 |---------|-----|
+| `apt update` fails with `Network is unreachable` on IPv6 addresses / `no longer has a Release file` | your network doesn't route IPv6 — force apt to IPv4: `echo 'Acquire::ForceIPv4 "true";' \| sudo tee /etc/apt/apt.conf.d/99force-ipv4`, then re-run `sudo apt update` |
 | `apt: Unable to locate package ros-humble-*` | the ROS 2 apt repo wasn't added — redo §3c, ensure `sudo apt update` has no errors |
 | `ros2: command not found` | you didn't source ROS: `source /opt/ros/humble/setup.bash` |
 | `ros2 topic list` shows topics but `echo` hangs | PX4 publishes **best-effort** QoS: `ros2 topic echo <topic> --qos-reliability best_effort` |
