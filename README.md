@@ -33,83 +33,105 @@ per drone). It is validated two ways:
 
 ## 1. What you need
 
-- **Companion computer:** Raspberry Pi running **Ubuntu** (22.04 recommended).
+- **Companion computer:** Raspberry Pi running **Ubuntu 22.04 (Jammy)**.
 - **Flight controller:** Pixhawk-class board running **PX4 v1.15+**, with the
   Pi connected to **TELEM2**.
-- **For simulation:** any Ubuntu 22.04 PC (a laptop will be fine).
+- **For simulation:** any Ubuntu 22.04 PC (a laptop is fine).
 
-> This project is developed and tested on **Ubuntu 22.04 + ROS 2 Humble**.
-> The same steps work on 24.04 + Jazzy (just swap the distro name), but Humble is
-> the known-good combination.
+> **Ubuntu / ROS version note.** Ubuntu 22.04's codename is **Jammy**, and the
+> matching ROS 2 release is **Humble** — that's what this project uses. Don't
+> confuse it with **Jazzy**, which is a *different* ROS 2 release for Ubuntu
+> 24.04. On 22.04 you install **Humble** (`ros-humble-*`).
 
 ---
 
-## 2. Install ROS 2 (depends on your Ubuntu version)
+## 2. Prepare a fresh Ubuntu (do this first)
 
-First check your Ubuntu version:
+On a brand-new Ubuntu install, update the system and install the basic tools
+**before** touching ROS. On a headless Raspberry Pi, run these over SSH.
 
 ```bash
-lsb_release -a
+# 1) update everything
+sudo apt update && sudo apt full-upgrade -y
+
+# 2) essential build / dev tools used throughout this guide
+sudo apt install -y \
+  build-essential cmake git wget curl gnupg2 lsb-release \
+  python3-pip python3-venv python3-dev \
+  net-tools nano
+
+# 3) (Raspberry Pi, headless) make sure the SSH server is up so you can log in
+sudo apt install -y openssh-server
+sudo systemctl enable --now ssh
 ```
 
-Pick the matching ROS 2 distribution:
-
-| Ubuntu | Codename | ROS 2 distro | package prefix |
-|--------|----------|--------------|----------------|
-| 22.04  | jammy    | **Humble** (recommended) | `ros-humble-*` |
-| 24.04  | noble    | **Jazzy**    | `ros-jazzy-*`  |
-| 20.04  | focal    | Foxy (end-of-life — not recommended) | `ros-foxy-*` |
-
-Set the distro you chose, then run the rest as-is:
+Reboot if the upgrade pulled a new kernel:
 
 ```bash
-# choose one:  humble  (22.04)   or   jazzy  (24.04)
-export ROS_DISTRO=humble
+sudo reboot
 ```
 
-**Enable the ROS 2 apt repository** (same for every distro):
+---
+
+## 3. Install ROS 2 Humble (Debian packages)
+
+This follows the official guide:
+<https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html>
+(prebuilt `.deb` packages via apt — no building from source).
 
 ```bash
-# locale
+# --- 3a. Set the locale to UTF-8 ---
 sudo apt update && sudo apt install -y locales
 sudo locale-gen en_US en_US.UTF-8
 sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-# universe repo + tools
-sudo apt install -y software-properties-common curl
+# --- 3b. Enable the "universe" repository ---
+sudo apt install -y software-properties-common
 sudo add-apt-repository -y universe
 
-# add the ROS 2 apt source package
+# --- 3c. Add the ROS 2 apt repository (official ros2-apt-source package) ---
+sudo apt update && sudo apt install -y curl
 export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F '"tag_name"' | awk -F\" '{print $4}')
 curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo $VERSION_CODENAME)_all.deb"
-sudo apt install -y /tmp/ros2-apt-source.deb
-sudo apt update
-```
+sudo dpkg -i /tmp/ros2-apt-source.deb
 
-**Install ROS 2:**
+# --- 3d. Install ROS 2 Humble ---
+sudo apt update && sudo apt upgrade -y
 
-```bash
-# On the Raspberry Pi (no desktop needed):
-sudo apt install -y ros-$ROS_DISTRO-ros-base
+# On the Raspberry Pi (no GUI needed):
+sudo apt install -y ros-humble-ros-base
+# On a PC that will run RViz / the Gazebo demos, use the full desktop instead:
+#   sudo apt install -y ros-humble-desktop
 
-# On the simulation PC (needs the GUI / RViz / demos):
-sudo apt install -y ros-$ROS_DISTRO-desktop
-
-# build/dev tools (both machines)
+# build tools + rosdep
 sudo apt install -y ros-dev-tools python3-colcon-common-extensions
 ```
 
-Source ROS in every new shell (and add it to your `~/.bashrc`):
+**Source ROS 2 in every new shell** (and make it automatic):
 
 ```bash
-source /opt/ros/$ROS_DISTRO/setup.bash
-echo "source /opt/ros/$ROS_DISTRO/setup.bash" >> ~/.bashrc
+source /opt/ros/humble/setup.bash
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 ```
+
+**Check it works:**
+
+```bash
+ros2 --help          # should print the ros2 CLI help, not "command not found"
+```
+
+> **If apt says `Unable to locate package ros-humble-ros-base`**, the repository
+> step (3c) didn't take. Re-run 3c, confirm `sudo apt update` finishes with **no
+> errors**, then retry 3d.
+>
+> **On Ubuntu 24.04 instead?** The same steps work — the `.deb` in 3c picks your
+> codename automatically; just replace `humble` with `jazzy` in 3d and when
+> sourcing.
 
 ---
 
-## 3. Install the micro-XRCE-DDS Agent
+## 4. Install the micro-XRCE-DDS Agent
 
 This is the uORB ↔ ROS 2 bridge that talks to PX4. Build it from source once:
 
@@ -136,12 +158,19 @@ MicroXRCEAgent --help
 
 ---
 
-## 4. Get and build this workspace
+## 5. Get and build this workspace
 
 ```bash
 cd ~
 git clone https://github.com/lovesh1711/ws_offboard_control.git
 cd ws_offboard_control
+
+# pull in any ROS dependencies of the packages (first time only)
+sudo rosdep init           # ignore "already exists" if you've done this before
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+
+# build
 colcon build
 source install/local_setup.bash
 echo "source ~/ws_offboard_control/install/local_setup.bash" >> ~/.bashrc
@@ -151,7 +180,7 @@ echo "source ~/ws_offboard_control/install/local_setup.bash" >> ~/.bashrc
 
 ---
 
-## 5. Simulation (Gazebo SITL)
+## 6. Simulation (Gazebo SITL)
 
 The simulation runs on a **PC** (not the Pi) and needs PX4-Autopilot + Gazebo.
 
@@ -190,7 +219,7 @@ Other helpers: `./simulation/run_mission.sh` (interactive launcher),
 
 ---
 
-## 6. Hardware setup (real drone)
+## 7. Hardware setup (real drone)
 
 **Wiring:** connect the Pi UART to the flight controller's **TELEM2**
 (TX↔RX, RX↔TX, GND↔GND).
@@ -211,7 +240,7 @@ Reboot the flight controller after changing these.
 
 ---
 
-## 7. Run on the drone: arm test & hover test
+## 8. Run on the drone: arm test & hover test
 
 Power the drone on its battery. Open **two SSH sessions** to the Pi
 (e.g. `ssh <user>@<pi-ip>`).
@@ -219,14 +248,14 @@ Power the drone on its battery. Open **two SSH sessions** to the Pi
 **Terminal 1 — start the agent** (serial link to the FC):
 
 ```bash
-source /opt/ros/$ROS_DISTRO/setup.bash
+source /opt/ros/humble/setup.bash
 MicroXRCEAgent serial --dev /dev/ttyAMA0 -b 921600
 ```
 
 **Terminal 2 — verify the link:**
 
 ```bash
-source /opt/ros/$ROS_DISTRO/setup.bash
+source /opt/ros/humble/setup.bash
 source ~/ws_offboard_control/install/local_setup.bash
 ros2 topic list | grep fmu          # you should see /fmu/out/vehicle_status_v1, etc.
 ```
@@ -264,10 +293,12 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 
 | symptom | fix |
 |---------|-----|
+| `apt: Unable to locate package ros-humble-*` | the ROS 2 apt repo wasn't added — redo §3c, ensure `sudo apt update` has no errors |
+| `ros2: command not found` | you didn't source ROS: `source /opt/ros/humble/setup.bash` |
 | `ros2 topic list` shows topics but `echo` hangs | PX4 publishes **best-effort** QoS: `ros2 topic echo <topic> --qos-reliability best_effort` |
 | topics listed but no data / build type errors | `px4_msgs` must match your PX4 firmware; this repo vendors a compatible version |
 | status topic missing | PX4 1.17 renamed it to `/fmu/out/vehicle_status_v1` (the nodes here already use it) |
-| agent build fails on a Fast-DDS branch | pin the branch to a tag — see §3 |
+| agent build fails on a Fast-DDS branch | pin the branch to a tag — see §4 |
 | drone arms but won't take off in `hover_test` | needs a valid GPS/EKF position estimate — run **outdoors**; check status in QGC |
 
 ---
