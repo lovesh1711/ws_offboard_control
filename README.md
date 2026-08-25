@@ -71,6 +71,20 @@ Reboot if the upgrade pulled a new kernel:
 sudo reboot
 ```
 
+> **If `apt update` / `apt upgrade` fails with `Network is unreachable` on IPv6
+> addresses** (e.g. `ports.ubuntu.com:80 (2620:2d:4002:1::10c) ... Network is
+> unreachable`, ending in `no longer has a Release file`), your network doesn't
+> route IPv6. This is a common cause of a *failed / incomplete ROS 2 install* on
+> a Raspberry Pi, because apt can't fetch the base Ubuntu packages. Force apt to
+> use IPv4 and re-run:
+>
+> ```bash
+> echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4
+> sudo apt update && sudo apt full-upgrade -y
+> ```
+>
+> Do this **before** installing ROS 2 in §3.
+
 ---
 
 ## 3. Install ROS 2 Humble (Debian packages)
