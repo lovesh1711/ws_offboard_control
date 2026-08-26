@@ -190,13 +190,20 @@ cd ~
 git clone https://github.com/lovesh1711/ws_offboard_control.git
 cd ws_offboard_control
 
-# pull in any ROS dependencies of the packages (first time only)
+# pull in ROS dependencies (first time only)
 sudo rosdep init           # ignore "already exists" if you've done this before
 rosdep update
-rosdep install --from-paths src --ignore-src -r -y
 
-# build
-colcon build
+# --- On the Raspberry Pi (hardware): build ONLY the flight packages ---
+# The gz_truth package needs Gazebo (gz-transport), which is NOT installed on the
+# Pi, so a full `colcon build` fails there. Build just what the drone needs:
+rosdep install --from-paths src/px4_msgs src/multi_sim --ignore-src -r -y
+colcon build --packages-select px4_msgs multi_sim
+
+# --- On the simulation PC (has Gazebo via the PX4 setup): build everything ---
+#   rosdep install --from-paths src --ignore-src -r -y
+#   colcon build
+
 source install/local_setup.bash
 echo "source ~/ws_offboard_control/install/local_setup.bash" >> ~/.bashrc
 ```
@@ -320,6 +327,7 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 |---------|-----|
 | `apt update` fails with `Network is unreachable` on IPv6 addresses / `no longer has a Release file` | your network doesn't route IPv6 — force apt to IPv4: `echo 'Acquire::ForceIPv4 "true";' \| sudo tee /etc/apt/apt.conf.d/99force-ipv4`, then re-run `sudo apt update` |
 | `apt: Unable to locate package ros-humble-*` | the ROS 2 apt repo wasn't added — redo §3c, ensure `sudo apt update` has no errors |
+| `colcon build` fails: `Could not find ... gz-transport12` (package `gz_truth`) | you're building on the Pi (no Gazebo) — build only the flight packages: `colcon build --packages-select px4_msgs multi_sim` |
 | `ros2: command not found` | you didn't source ROS: `source /opt/ros/humble/setup.bash` |
 | `ros2 topic list` shows topics but `echo` hangs | PX4 publishes **best-effort** QoS: `ros2 topic echo <topic> --qos-reliability best_effort` |
 | topics listed but no data / build type errors | `px4_msgs` must match your PX4 firmware; this repo vendors a compatible version |
