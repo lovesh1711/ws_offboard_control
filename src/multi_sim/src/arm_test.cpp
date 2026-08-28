@@ -35,7 +35,7 @@ public:
 
     cmd_pub_ = this->create_publisher<VehicleCommand>(ns_ + "/fmu/in/vehicle_command", 10);
     status_sub_ = this->create_subscription<VehicleStatus>(
-        ns_ + "/fmu/out/vehicle_status", rclcpp::SensorDataQoS(),
+        ns_ + "/fmu/out/vehicle_status_v1", rclcpp::SensorDataQoS(),
         [this](const VehicleStatus& s) { arming_state_ = s.arming_state; });
 
     start_ = this->now();
