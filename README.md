@@ -261,6 +261,14 @@ disable the serial login console and Bluetooth so the UART is free
 (`sudo raspi-config` → *Interface* → *Serial*: login shell **No**, hardware
 **Yes**; and add `dtoverlay=disable-bt` to `/boot/firmware/config.txt`), then reboot.
 
+Also add your user to the `dialout` group so the agent (and ROS nodes) can open
+the serial port **without `sudo`**:
+
+```bash
+sudo usermod -aG dialout $USER
+newgrp dialout      # apply to the current shell (or log out and back in)
+```
+
 **In QGroundControl — set PX4 parameters** on the flight controller:
 
 | parameter | value |
@@ -329,6 +337,7 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 | `apt: Unable to locate package ros-humble-*` | the ROS 2 apt repo wasn't added — redo §3c, ensure `sudo apt update` has no errors |
 | `colcon build` fails: `Could not find ... gz-transport12` (package `gz_truth`) | you're building on the Pi (no Gazebo) — build only the flight packages: `colcon build --packages-select px4_msgs multi_sim` |
 | `ros2: command not found` | you didn't source ROS: `source /opt/ros/humble/setup.bash` |
+| `MicroXRCEAgent: open device error ... errno: 13 ... superuser privileges` | serial-port permission — add yourself to the `dialout` group: `sudo usermod -aG dialout $USER`, then `newgrp dialout` (or log out/in) |
 | `ros2 topic list` shows topics but `echo` hangs | PX4 publishes **best-effort** QoS: `ros2 topic echo <topic> --qos-reliability best_effort` |
 | topics listed but no data / build type errors | `px4_msgs` must match your PX4 firmware; this repo vendors a compatible version |
 | status topic missing | PX4 1.17 renamed it to `/fmu/out/vehicle_status_v1` (the nodes here already use it) |
