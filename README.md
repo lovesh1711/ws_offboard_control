@@ -189,7 +189,42 @@ MicroXRCEAgent --help
 cd ~
 git clone https://github.com/lovesh1711/ws_offboard_control.git
 cd ws_offboard_control
+```
 
+### ⚠️ Match `px4_msgs` to your flight-controller firmware (critical)
+
+`px4_msgs` (the ROS 2 message definitions) **must match the PX4 version on your
+board**. If they don't, every topic will still *appear* in `ros2 topic list`, but
+**no data is delivered** — you'll see errors like:
+
+```
+[RTPS_READER_HISTORY Error] Change payload size of '220' bytes is larger than
+the history payload size of '207' bytes and cannot be resized.
+```
+
+(220 = what the firmware sends, 207 = what the stale message definition expects.)
+
+Check your firmware version in QGroundControl, then replace the vendored
+`px4_msgs` with the matching branch:
+
+| PX4 firmware | px4_msgs branch |
+|--------------|-----------------|
+| 1.14.x | `release/1.14` |
+| 1.15.x | `release/1.15` |
+| 1.16.x | `release/1.16` |
+| 1.17.x | `release/1.17` |
+
+```bash
+cd ~/ws_offboard_control/src
+rm -rf px4_msgs
+git clone -b release/1.17 https://github.com/PX4/px4_msgs.git   # <-- match YOUR version
+rm -rf px4_msgs/.git
+cd ~/ws_offboard_control
+```
+
+Then build:
+
+```bash
 # pull in ROS dependencies (first time only)
 sudo rosdep init           # ignore "already exists" if you've done this before
 rosdep update
@@ -323,7 +358,29 @@ source ~/ws_offboard_control/install/local_setup.bash
 ros2 topic list | grep fmu          # you should see /fmu/out/vehicle_status_v1, etc.
 ```
 
+**Reading topic data — QoS gotchas.** PX4 publishes **best-effort**, so a plain
+`ros2 topic echo` shows nothing; you must add `--qos-reliability best_effort`.
+Low-rate / publish-on-change topics (e.g. `vehicle_status`) also need
+`--qos-durability transient_local` to see the last cached sample. (`ros2 topic
+hz` in Humble does **not** accept `--qos-*` flags, so use `echo`.)
+
+```bash
+# high-rate topic — streams continuously (best proof the link works end-to-end):
+ros2 topic echo /fmu/out/vehicle_local_position_v1 --qos-reliability best_effort
+
+# low-rate topic — add transient_local to grab the cached value:
+ros2 topic echo /fmu/out/vehicle_status_v1 --qos-reliability best_effort --qos-durability transient_local
+```
+
+If these print `RTPS_READER_HISTORY ... payload size` errors instead of data,
+`px4_msgs` doesn't match your firmware — see §5.
+
 ### Arm test (on the ground, **props off**)
+
+> **Indoors (no GPS), `arm_safe` will refuse to arm** — the preflight checks
+> require a healthy GPS/EKF. That's correct behaviour, not a fault. For an indoor
+> bench check use `arm_test` (force-arm); use `arm_safe`/`hover_test` **outdoors
+> with GPS lock** (`vehicle_local_position` shows `xy_global: true`).
 
 Normal arming with all safety/preflight checks (won't arm on a bad GPS/EKF):
 
@@ -362,10 +419,11 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 | `ros2: command not found` | you didn't source ROS: `source /opt/ros/humble/setup.bash` |
 | `MicroXRCEAgent: open device error ... errno: 13 ... superuser privileges` | serial-port permission — add yourself to the `dialout` group: `sudo usermod -aG dialout $USER`, then `newgrp dialout` (or log out/in) |
 | agent runs but 0 bytes; FC `uxrce_dds_client status` says `Running, disconnected`; `/dev/serial0` missing | the Pi's GPIO UART isn't enabled — `ttyAMA0` is still Bluetooth. Do the `enable_uart` + `dtoverlay=disable-bt` steps in §7 and reboot |
-| `ros2 topic list` shows topics but `echo` hangs | PX4 publishes **best-effort** QoS: `ros2 topic echo <topic> --qos-reliability best_effort` |
-| topics listed but no data / build type errors | `px4_msgs` must match your PX4 firmware; this repo vendors a compatible version |
-| status topic missing | PX4 1.17 renamed it to `/fmu/out/vehicle_status_v1` (the nodes here already use it) |
+| `ros2 topic list` shows topics but `echo` shows nothing | PX4 is **best-effort**: add `--qos-reliability best_effort`. For low-rate topics (e.g. `vehicle_status`) also add `--qos-durability transient_local`. (`ros2 topic hz` can't set QoS in Humble — use `echo`.) |
+| `RTPS_READER_HISTORY ... payload size 'N' larger than ... 'M'` (e.g. 220 vs 207) | **`px4_msgs` doesn't match your firmware** — clone the matching `release/1.x` branch and rebuild; see §5 |
+| status topic missing | PX4 1.16+ renamed it to `/fmu/out/vehicle_status_v1` (the nodes here already use it) |
 | agent build fails on a Fast-DDS branch | pin the branch to a tag — see §4 |
+| `arm_safe` won't arm indoors | preflight needs GPS/EKF — expected; use `arm_test` (force) indoors, `arm_safe`/`hover_test` outdoors with GPS lock |
 | drone arms but won't take off in `hover_test` | needs a valid GPS/EKF position estimate — run **outdoors**; check status in QGC |
 
 ---
