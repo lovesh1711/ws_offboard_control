@@ -23,6 +23,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <string>
 
 using namespace std::chrono_literals;
@@ -40,18 +41,23 @@ public:
     alt_    = this->declare_parameter<double>("alt", 3.0);       // metres above takeoff
     hold_s_ = this->declare_parameter<double>("hold_s", 5.0);    // seconds hovering
 
+    // PX4 1.16+ versions the /fmu/out topics (e.g. vehicle_local_position_v1).
+    // Default "_v1" (PX4 1.17 hardware); set PX4_OUT_SUFFIX="" for older SITL.
+    const char* sfx_env = std::getenv("PX4_OUT_SUFFIX");
+    const std::string sfx = sfx_env ? sfx_env : "_v1";
+
     offb_pub_ = create_publisher<OffboardControlMode>(ns_ + "/fmu/in/offboard_control_mode", rclcpp::SensorDataQoS());
     traj_pub_ = create_publisher<TrajectorySetpoint>(ns_ + "/fmu/in/trajectory_setpoint", rclcpp::SensorDataQoS());
     cmd_pub_  = create_publisher<VehicleCommand>(ns_ + "/fmu/in/vehicle_command", 10);
 
     lpos_sub_ = create_subscription<VehicleLocalPosition>(
-        ns_ + "/fmu/out/vehicle_local_position", rclcpp::SensorDataQoS(),
+        ns_ + "/fmu/out/vehicle_local_position" + sfx, rclcpp::SensorDataQoS(),
         [this](const VehicleLocalPosition& m) {
           px_ = m.x; py_ = m.y; pz_ = m.z; heading_ = m.heading;
           pos_ok_ = m.xy_valid && m.z_valid;
         });
     status_sub_ = create_subscription<VehicleStatus>(
-        ns_ + "/fmu/out/vehicle_status_v1", rclcpp::SensorDataQoS(),
+        ns_ + "/fmu/out/vehicle_status" + sfx, rclcpp::SensorDataQoS(),
         [this](const VehicleStatus& s) { armed_ = (s.arming_state == 2); });
 
     start_ = this->now();

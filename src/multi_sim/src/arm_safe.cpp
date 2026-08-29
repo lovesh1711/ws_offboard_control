@@ -17,6 +17,7 @@
 #include <px4_msgs/msg/vehicle_status.hpp>
 
 #include <chrono>
+#include <cstdlib>
 #include <string>
 
 using namespace std::chrono_literals;
@@ -31,9 +32,11 @@ public:
     hold_s_ = this->declare_parameter<double>("hold_s", 5.0);     // seconds armed before disarm
 
     cmd_pub_ = this->create_publisher<VehicleCommand>(ns_ + "/fmu/in/vehicle_command", 10);
-    // NOTE: PX4 1.17 publishes vehicle_status on the "_v1" topic.
+    // PX4 1.16+ versions /fmu/out topics; default "_v1", set PX4_OUT_SUFFIX="" for older SITL.
+    const char* sfx_env = std::getenv("PX4_OUT_SUFFIX");
+    const std::string sfx = sfx_env ? sfx_env : "_v1";
     status_sub_ = this->create_subscription<VehicleStatus>(
-        ns_ + "/fmu/out/vehicle_status_v1", rclcpp::SensorDataQoS(),
+        ns_ + "/fmu/out/vehicle_status" + sfx, rclcpp::SensorDataQoS(),
         [this](const VehicleStatus& s) { arming_state_ = s.arming_state; });
 
     start_ = this->now();

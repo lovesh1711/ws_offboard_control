@@ -33,9 +33,10 @@ per drone). It is validated two ways:
 
 ## 1. What you need
 
-- **Companion computer:** Raspberry Pi running **Ubuntu 22.04 (Jammy)**.
-- **Flight controller:** Pixhawk-class board running **PX4 v1.15+**, with the
-  Pi connected to **TELEM2**.
+- **Per drone:** a flight controller (Pixhawk-class, **PX4 1.17 recommended**)
+  with a **Raspberry Pi** companion (**Ubuntu 22.04 / Jammy**) wired to **TELEM2**.
+- **For multiple drones:** repeat the above per drone and keep them **all on the
+  same PX4 firmware** — your laptop is the central station (see §9).
 - **For simulation:** any Ubuntu 22.04 PC (a laptop is fine).
 
 > **Ubuntu / ROS version note.** Ubuntu 22.04's codename is **Jammy**, and the
@@ -409,6 +410,98 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 
 ---
 
+## 9. Multiple drones from one laptop (central station)
+
+The whole point of this project: your **laptop is the ground station**, and it
+flies *N* real drones at once — exactly like the Gazebo demo.
+
+```
+              Wi-Fi LAN  ·  one ROS 2 graph  ·  ROS_DOMAIN_ID = 0
+   ┌────────────────┬──────────────────────┬──────────────────────┐
+[ Laptop ]      [ Pi #1 ]               [ Pi #2 ]
+ mission_        MicroXRCEAgent          MicroXRCEAgent
+ setpoints        (serial → FC)           (serial → FC)
+ node                │                        │
+ (commands       [ FC #1 / PX4 ]         [ FC #2 / PX4 ]
+  both)           /uav_0/fmu/...          /uav_1/fmu/...
+```
+
+Each drone's Pi runs an agent that bridges its FC onto Wi-Fi; the laptop joins the
+same ROS 2 graph and runs **one** `mission_setpoints` node addressing each drone
+by **namespace**. (ROS 2 discovery is distributed — every machine sees *all*
+topics from *all* drones; each Pi showing `uav_0` **and** `uav_1` is normal.)
+
+> **Keep every drone on the same PX4 firmware — 1.17 recommended.** Mixed
+> versions name topics differently (1.16 uses `/fmu/out/vehicle_local_position`,
+> 1.17 uses `..._v1`) and can need different `px4_msgs`. One uniform version means
+> one `px4_msgs`, one set of commands, and `UXRCE_DDS_NS_IDX` available on all
+> (it exists only on 1.17+).
+
+### Per-drone PX4 params (QGC) — unique per vehicle, reboot each FC
+
+| parameter | Drone 1 | Drone 2 | purpose |
+|-----------|---------|---------|---------|
+| `MAV_SYS_ID` | 1 | 2 | unique vehicle id |
+| `UXRCE_DDS_KEY` | 1 | 2 | unique DDS client key |
+| `UXRCE_DDS_NS_IDX` | 0 | 1 | **namespace** → `/uav_0`, `/uav_1` (PX4 1.17+) |
+| `UXRCE_DDS_DOM_ID` | 0 | 0 | same domain → laptop sees both |
+| `UXRCE_DDS_CFG` | TELEM2 | TELEM2 | serial port |
+| `SER_TEL2_BAUD` | 921600 | 921600 | baud |
+
+Check the real namespace after reboot with `ros2 topic list` (it's `/uav_<idx>`).
+
+### Networking
+- Laptop + all Pis on the **same Wi-Fi/subnet**, same `ROS_DOMAIN_ID` (default 0).
+- `px4_msgs` on the **laptop** must match the drones' firmware (see §5).
+
+### Bring-up (staged — do NOT skip to the full mission)
+
+**1) Start an agent on each Pi:**
+```bash
+MicroXRCEAgent serial --dev /dev/ttyAMA0 -b 921600
+```
+
+**2) From the laptop, confirm both drones are visible:**
+```bash
+ros2 topic list | grep fmu        # expect BOTH /uav_0/fmu/... and /uav_1/fmu/...
+```
+
+**3) Arm each drone by namespace** (props off — note the `-p ns:=`):
+```bash
+ros2 run multi_sim arm_test --ros-args -p ns:=/uav_0 -p sysid:=1 -p hold_s:=5.0
+ros2 run multi_sim arm_test --ros-args -p ns:=/uav_1 -p sysid:=2 -p hold_s:=5.0
+```
+
+**4) Simultaneous hover** (outdoors, GPS, RC + kill per drone):
+```bash
+ros2 run multi_sim hover_test --ros-args -p ns:=/uav_0 -p sysid:=1 -p alt:=3.0 -p hold_s:=5.0
+ros2 run multi_sim hover_test --ros-args -p ns:=/uav_1 -p sysid:=2 -p alt:=3.0 -p hold_s:=5.0
+```
+
+**5) Full multi-drone mission** — one node, one config (`ns sysid wait tx ty alt`):
+```bash
+cat > /tmp/mission.txt <<'EOF'
+/uav_0 1 0  8  5  4
+/uav_1 2 0  8 -5  4
+EOF
+MISSION_CONFIG_FILE=/tmp/mission.txt ros2 run multi_sim mission_setpoints
+```
+
+> **Topic versioning.** The nodes read `_v1` out-topics by default (PX4 1.17). If a
+> machine runs **older/unversioned** PX4 (e.g. an old SITL), set
+> `PX4_OUT_SUFFIX=""` before running the node.
+
+### Multi-drone caveats (different from Gazebo)
+- **Wi-Fi is your control link.** Offboard needs setpoints > 2 Hz continuously; a
+  Wi-Fi dropout triggers PX4's offboard failsafe. Fly where signal is strong, and
+  keep **each drone's RC + kill switch** ready.
+- **DDS discovery uses multicast** — some routers block client-to-client
+  multicast, so the laptop may not see the Pis. If `ros2 topic list` is empty
+  across machines, use a dedicated router / hotspot, or a FastDDS discovery server.
+- Each drone needs its **own GPS lock**; start low and well separated.
+
+---
+
 ## Troubleshooting
 
 | symptom | fix |
@@ -424,6 +517,7 @@ ros2 run multi_sim hover_test --ros-args -p alt:=3.0 -p hold_s:=5.0
 | status topic missing | PX4 1.16+ renamed it to `/fmu/out/vehicle_status_v1` (the nodes here already use it) |
 | agent build fails on a Fast-DDS branch | pin the branch to a tag — see §4 |
 | `arm_safe` won't arm indoors | preflight needs GPS/EKF — expected; use `arm_test` (force) indoors, `arm_safe`/`hover_test` outdoors with GPS lock |
+| arm/hover does nothing, `arming_state` stays 0, on a namespaced drone | you didn't pass the namespace — once a drone has `UXRCE_DDS_NS_IDX` it's **not** at root: add `-p ns:=/uav_0` (match `ros2 topic list`) and `-p sysid:=<MAV_SYS_ID>` |
 | drone arms but won't take off in `hover_test` | needs a valid GPS/EKF position estimate — run **outdoors**; check status in QGC |
 
 ---

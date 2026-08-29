@@ -246,6 +246,12 @@ public:
     // with a built-in 2-drone default if no config file is present.
     std::vector<DroneConfig> cfgs = load_configs();
 
+    // PX4 1.16+ versions the /fmu/out topics (e.g. vehicle_local_position_v1).
+    // Default to "_v1" (matches PX4 1.17 hardware); override with
+    // PX4_OUT_SUFFIX="" for older/unversioned SITL.
+    const char* sfx_env = std::getenv("PX4_OUT_SUFFIX");
+    const std::string sfx = sfx_env ? sfx_env : "_v1";
+
     drones_.reserve(cfgs.size());
     for (const auto& cfg : cfgs) {
       drones_.emplace_back(std::make_shared<DroneIF>());
@@ -263,7 +269,7 @@ public:
 
       d->lpos_sub = this->create_subscription<VehicleLocalPosition>(
         
-          cfg.ns + "/fmu/out/vehicle_local_position",
+          cfg.ns + "/fmu/out/vehicle_local_position" + sfx,
           rclcpp::SensorDataQoS(),
           [d](const VehicleLocalPosition& msg) {
             d->px = msg.x;
@@ -276,7 +282,7 @@ public:
           });
 
       d->status_sub = this->create_subscription<VehicleStatus>(
-          cfg.ns + "/fmu/out/vehicle_status",
+          cfg.ns + "/fmu/out/vehicle_status" + sfx,
           rclcpp::SensorDataQoS(),
           [d](const VehicleStatus& msg) {
             d->armed = (msg.arming_state == 2);  // 2 = ARMING_STATE_ARMED
