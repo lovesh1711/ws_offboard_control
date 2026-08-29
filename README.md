@@ -205,20 +205,23 @@ the history payload size of '207' bytes and cannot be resized.
 
 (220 = what the firmware sends, 207 = what the stale message definition expects.)
 
-Check your firmware version in QGroundControl, then replace the vendored
-`px4_msgs` with the matching branch:
+**This repo vendors `px4_msgs` at `release/1.17`.** If all your flight controllers
+run **PX4 1.17** (recommended — keep the whole fleet on one version), do nothing;
+skip straight to the build. **Only if your firmware is a different version**,
+replace it with the matching branch:
 
 | PX4 firmware | px4_msgs branch |
 |--------------|-----------------|
 | 1.14.x | `release/1.14` |
 | 1.15.x | `release/1.15` |
 | 1.16.x | `release/1.16` |
-| 1.17.x | `release/1.17` |
+| **1.17.x** | **`release/1.17` (vendored default)** |
 
 ```bash
+# ONLY if your firmware isn't 1.17:
 cd ~/ws_offboard_control/src
 rm -rf px4_msgs
-git clone -b release/1.17 https://github.com/PX4/px4_msgs.git   # <-- match YOUR version
+git clone -b release/1.15 https://github.com/PX4/px4_msgs.git   # <-- match YOUR version
 rm -rf px4_msgs/.git
 cd ~/ws_offboard_control
 ```
