@@ -131,7 +131,9 @@ echo "[record_demo]    and press its record button."
 read -rp "[record_demo] 3) Then press ENTER here to launch the mission (drones take off)... "
 
 echo "[record_demo] launching mission node"
-MISSION_CONFIG_FILE="$CONFIG_FILE" ros2 run multi_sim mission_setpoints > "$LOG_DIR/node.log" 2>&1 &
+# SITL here runs PX4 1.15 (unversioned /fmu/out topics); the nodes default to the
+# 1.17 "_v1" names, so tell them to use the unversioned ones for the sim.
+PX4_OUT_SUFFIX="${PX4_OUT_SUFFIX-}" MISSION_CONFIG_FILE="$CONFIG_FILE" ros2 run multi_sim mission_setpoints > "$LOG_DIR/node.log" 2>&1 &
 
 echo "============================================================================"
 echo "[record_demo] Mission running. Stop Gazebo's recorder when done, then press"
