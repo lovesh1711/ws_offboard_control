@@ -23,6 +23,9 @@ ament_target_dependencies(arm_test rclcpp px4_msgs )
 add_executable(arm_safe src/arm_safe.cpp)
 ament_target_dependencies(arm_safe rclcpp px4_msgs )
 
+add_executable(arm_all src/arm_all.cpp)
+ament_target_dependencies(arm_all rclcpp px4_msgs )
+
 add_executable(hover_test src/hover_test.cpp)
 ament_target_dependencies(hover_test rclcpp px4_msgs )
 
@@ -39,6 +42,7 @@ install(TARGETS
   mission_setpoints
   arm_test
   arm_safe
+  arm_all
   hover_test
   altitude_probe
   crossing_test
