@@ -41,7 +41,7 @@ per drone). It is validated two ways:
 > **Ubuntu / ROS version note.** Ubuntu 22.04's codename is **Jammy**, and the
 > matching ROS 2 release is **Humble** — that's what this project uses. Don't
 > confuse it with **Jazzy**, which is a *different* ROS 2 release for Ubuntu
-> 24.04. On 22.04 you install **Humble** (`ros-humble-*`).
+> 24.04. On 22.04 you install **Humble** (`ros-humble-*`)
 
 ---
 
