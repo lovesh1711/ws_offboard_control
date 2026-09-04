@@ -1,0 +1,7 @@
+# Fleet definition for the real drones (central station on the laptop).
+#   ns      sysid     (ns = the drone's DDS namespace; sysid = its MAV_SYS_ID)
+# Add one line per drone. Used by arm_fleet.sh (and any node reading
+# MISSION_CONFIG_FILE). The mission node also reads extra columns
+# (wait tx ty alt), but arm_all only needs ns + sysid.
+/uav_0 1
+/uav_1 2
