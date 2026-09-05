@@ -27,6 +27,7 @@ per drone). It is validated two ways:
 | `mission_setpoints` | multi-drone mission FSM: arm → ascend → cruise to target → land |
 | `arm_test` | **force**-arm test — bypasses preflight (indoor / no-GPS only, **props off**) |
 | `arm_safe` | **normal** arm with full preflight checks, hold, disarm |
+| `arm_all` | **simultaneous** multi-drone arm — one process, one callback group per drone (fleet config); see §9 |
 | `hover_test` | offboard hover: arm → climb to `alt` → hold → auto-land (outdoor / GPS) |
 
 ---
@@ -469,10 +470,26 @@ MicroXRCEAgent serial --dev /dev/ttyAMA0 -b 921600
 ros2 topic list | grep fmu        # expect BOTH /uav_0/fmu/... and /uav_1/fmu/...
 ```
 
-**3) Arm each drone by namespace** (props off — note the `-p ns:=`):
+**3) Arm the whole fleet — one command** (props off). This runs the `arm_all`
+node: **one process**, a `MultiThreadedExecutor`, **one callback group per
+drone**, so all drones arm **simultaneously** (the same architecture as the
+mission). It reads `hardware_experiment/fleet.txt`:
+```bash
+./hardware_experiment/arm_fleet.sh
+# options pass straight through, e.g. normal-arm + longer hold:
+./hardware_experiment/arm_fleet.sh -p force:=false -p hold_s:=8.0
+```
+`fleet.txt` lists the drones, one `ns sysid` per line:
+```
+/uav_0 1
+/uav_1 2
+```
+Edit it to add/remove drones; comment a line with `#` to skip that drone. Point
+the script at a different file without editing via `MISSION_CONFIG_FILE=/path ...`.
+
+To arm **just one** drone instead, call `arm_test` directly by namespace:
 ```bash
 ros2 run multi_sim arm_test --ros-args -p ns:=/uav_0 -p sysid:=1 -p hold_s:=5.0
-ros2 run multi_sim arm_test --ros-args -p ns:=/uav_1 -p sysid:=2 -p hold_s:=5.0
 ```
 
 **4) Simultaneous hover** (outdoors, GPS, RC + kill per drone):
